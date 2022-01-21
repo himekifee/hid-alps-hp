@@ -124,15 +124,6 @@ zbook_post_resume(struct hid_device *hdev)
     return zbook_post_reset(hdev);
 }
 
-static bool zbook_match(struct hid_device *hdev, bool ignore_special_driver)
-{
-    if (hdev->vendor == USB_VENDOR_ID_ALPS_HP &&
-        hdev->product == HID_DEVICE_ID_ALPS_U1_HP) // USB keyboard
-        if (strstr(hdev->phys, "input3")) // Touchpad interface
-            return true;
-    return false;
-}
-
 static int touchpad_init(struct hid_device *hdev, struct zbook_dev *pri_data)
 {
     pri_data->max_fingers = 5;
@@ -150,50 +141,67 @@ static int zbook_input_configured(struct hid_device *hdev, struct hid_input *hi)
 {
     int ret;
     struct zbook_dev *data = hid_get_drvdata(hdev);
-    if (data->dev_type == TOUCHPAD) {
-        struct input_dev *input = hi->input;
-        int res_x, res_y, i;
+    if (hdev->vendor == USB_VENDOR_ID_ALPS_HP &&
+        hdev->product == HID_DEVICE_ID_ALPS_U1_HP) // USB keyboard
+        if (strstr(hdev->phys, "input3")) // Touchpad interface
+        {
+            if (data->dev_type == TOUCHPAD) {
+                struct input_dev *input = hi->input;
+                int res_x, res_y, i;
 
-        data->input = input;
+                data->input = input;
 
-        hid_dbg(hdev, "Opening low level driver\n");
-        ret = hid_hw_open(hdev);
-        if (ret)
-            return ret;
+                hid_dbg(hdev, "Opening low level driver\n");
+                ret = hid_hw_open(hdev);
+                if (ret)
+                    return ret;
 
-        /* Allow incoming hid reports */
-        hid_device_io_start(hdev);
-        ret = touchpad_init(hdev, data);
+                /* Allow incoming hid reports */
+                hid_device_io_start(hdev);
+                ret = touchpad_init(hdev, data);
 
-        if (ret)
-            goto exit;
+                if (ret)
+                    goto exit;
 
-        __set_bit(EV_ABS, input->evbit);
-        input_set_abs_params(input, ABS_MT_POSITION_X, data->x_min,
-                             data->x_max, 0, 0);
-        input_set_abs_params(input, ABS_MT_POSITION_Y, data->y_min,
-                             data->y_max, 0, 0);
+                __set_bit(EV_ABS, input->evbit);
+                input_set_abs_params(input, ABS_MT_POSITION_X,
+                                     data->x_min, data->x_max,
+                                     0, 0);
+                input_set_abs_params(input, ABS_MT_POSITION_Y,
+                                     data->y_min, data->y_max,
+                                     0, 0);
 
-        if (data->x_active_len_mm && data->y_active_len_mm) {
-            res_x = (data->x_max - 1) / data->x_active_len_mm;
-            res_y = (data->y_max - 1) / data->y_active_len_mm;
+                if (data->x_active_len_mm &&
+                    data->y_active_len_mm) {
+                    res_x = (data->x_max - 1) /
+                            data->x_active_len_mm;
+                    res_y = (data->y_max - 1) /
+                            data->y_active_len_mm;
 
-            input_abs_set_res(input, ABS_MT_POSITION_X, res_x);
-            input_abs_set_res(input, ABS_MT_POSITION_Y, res_y);
+                    input_abs_set_res(input,
+                                      ABS_MT_POSITION_X,
+                                      res_x);
+                    input_abs_set_res(input,
+                                      ABS_MT_POSITION_Y,
+                                      res_y);
+                }
+
+                input_set_abs_params(input, ABS_MT_PRESSURE, 0,
+                                     127, 0, 0);
+
+                input_mt_init_slots(input, data->max_fingers,
+                                    INPUT_MT_POINTER);
+
+                __set_bit(EV_KEY, input->evbit);
+
+                if (data->btn_cnt == 1)
+                    __set_bit(INPUT_PROP_BUTTONPAD,
+                              input->propbit);
+
+                for (i = 0; i < data->btn_cnt; i++)
+                    __set_bit(BTN_LEFT + i, input->keybit);
+            }
         }
-
-        input_set_abs_params(input, ABS_MT_PRESSURE, 0, 127, 0, 0);
-
-        input_mt_init_slots(input, data->max_fingers, INPUT_MT_POINTER);
-
-        __set_bit(EV_KEY, input->evbit);
-
-        if (data->btn_cnt == 1)
-            __set_bit(INPUT_PROP_BUTTONPAD, input->propbit);
-
-        for (i = 0; i < data->btn_cnt; i++)
-            __set_bit(BTN_LEFT + i, input->keybit);
-    }
     return 0;
 
     exit:
@@ -219,29 +227,45 @@ static int zbook_probe(struct hid_device *hdev, const struct hid_device_id *id)
         return -ENOMEM;
 
     data->hdev = hdev;
+    if (hdev->vendor == USB_VENDOR_ID_ALPS_HP &&
+        hdev->product == HID_DEVICE_ID_ALPS_U1_HP) // USB keyboard
+        if (strstr(hdev->phys, "input3")) // Touchpad interface
+        {
+            hdev->quirks |= HID_QUIRK_NO_INIT_REPORTS;
 
-    hdev->quirks |= HID_QUIRK_NO_INIT_REPORTS;
+            ret = hid_parse(hdev);
+            if (ret) {
+                hid_err(hdev, "parse failed\n");
+                return ret;
+            }
 
+            hid_set_drvdata(hdev, data);
+            switch (hdev->product) {
+                case HID_DEVICE_ID_ALPS_U1_HP:
+                    data->dev_type = TOUCHPAD;
+                    break;
+                default:
+                    data->dev_type = UNKNOWN;
+            }
+
+            ret = hid_hw_start(hdev, HID_CONNECT_DEFAULT);
+            if (ret) {
+                hid_err(hdev, "hw start failed\n");
+                return ret;
+            }
+        }
+
+    hdev->quirks |= HID_QUIRK_INPUT_PER_APP;
     ret = hid_parse(hdev);
-    if (ret) {
-        hid_err(hdev, "parse failed\n");
+    if (ret)
         return ret;
-    }
-
-    hid_set_drvdata(hdev, data);
-    switch (hdev->product) {
-        case HID_DEVICE_ID_ALPS_U1_HP:
-            data->dev_type = TOUCHPAD;
-            break;
-        default:
-            data->dev_type = UNKNOWN;
-    }
 
     ret = hid_hw_start(hdev, HID_CONNECT_DEFAULT);
     if (ret) {
         hid_err(hdev, "hw start failed\n");
         return ret;
     }
+
     return 0;
 }
 
@@ -261,7 +285,6 @@ MODULE_DEVICE_TABLE(hid, zbook_id);
 static struct hid_driver zbook_driver = {
         .name = "hid-hp-zbook",
         .id_table = zbook_id,
-        .match = zbook_match,
         .probe = zbook_probe,
         .remove = zbook_remove,
         .raw_event = zbook_raw_event,
