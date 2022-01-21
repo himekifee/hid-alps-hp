@@ -1,0 +1,1 @@
+SUBSYSTEM=="input", ATTRS{id/vendor}=="04f2", ATTRS{id/product}=="1573", ATTRS{capabilities/abs}=="660800101000003", ENV{ID_INPUT_TOUCHPAD}="", ENV{ID_INPUT_TOUCHPAD_INTEGRATION}=""

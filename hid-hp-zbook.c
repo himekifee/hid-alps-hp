@@ -132,8 +132,8 @@ static int touchpad_init(struct hid_device *hdev, struct zbook_dev *pri_data) {
     pri_data->x_max = 3328;
     pri_data->y_min = 1;
     pri_data->y_max = 1920;
-    pri_data->x_active_len_mm = 110 - 1;
-    pri_data->y_active_len_mm = 65 - 1;
+    pri_data->x_active_len_mm = 111;
+    pri_data->y_active_len_mm = 66;
     return 0;
 }
 
@@ -214,9 +214,9 @@ static int zbook_input_mapping(struct hid_device *hdev, struct hid_input *hi,
         (hdev->vendor == BLUETOOTH_VENDOR_ID_ZBOOK &&
          hdev->product ==
          BLUETOOTH_PRODUCT_ID_ZBOOK && // Bluetooth keyboard
-         hi->name == NULL ||
-         (hi->name != NULL &&
-          !strstr(hi->name, "Mouse")))) // Other interfaces
+         (hi->name == NULL ||
+          (hi->name != NULL &&
+           !strstr(hi->name, "Mouse"))))) // Other interfaces
         return 0;
     return -1;
 }
