@@ -63,8 +63,7 @@ struct zbook_dev {
 };
 
 static int zbook_raw_event(struct hid_device *hdev, struct hid_report *report,
-                           u8 *data, int size)
-{
+                           u8 *data, int size) {
     struct zbook_dev *hdata = hid_get_drvdata(hdev);
     unsigned int x, y, z;
     int i;
@@ -112,20 +111,17 @@ static int zbook_raw_event(struct hid_device *hdev, struct hid_report *report,
 
 static int __maybe_unused
 
-zbook_post_reset(struct hid_device *hdev)
-{
+zbook_post_reset(struct hid_device *hdev) {
     return -1;
 }
 
 static int __maybe_unused
 
-zbook_post_resume(struct hid_device *hdev)
-{
+zbook_post_resume(struct hid_device *hdev) {
     return zbook_post_reset(hdev);
 }
 
-static int touchpad_init(struct hid_device *hdev, struct zbook_dev *pri_data)
-{
+static int touchpad_init(struct hid_device *hdev, struct zbook_dev *pri_data) {
     pri_data->max_fingers = 5;
     pri_data->btn_cnt = 1;
     pri_data->has_sp = 0;
@@ -137,8 +133,7 @@ static int touchpad_init(struct hid_device *hdev, struct zbook_dev *pri_data)
     return 0;
 }
 
-static int zbook_input_configured(struct hid_device *hdev, struct hid_input *hi)
-{
+static int zbook_input_configured(struct hid_device *hdev, struct hid_input *hi) {
     int ret;
     struct zbook_dev *data = hid_get_drvdata(hdev);
     if (hdev->vendor == USB_VENDOR_ID_ALPS_HP &&
@@ -212,13 +207,11 @@ static int zbook_input_configured(struct hid_device *hdev, struct hid_input *hi)
 
 static int zbook_input_mapping(struct hid_device *hdev, struct hid_input *hi,
                                struct hid_field *field, struct hid_usage *usage,
-                               unsigned long **bit, int *max)
-{
+                               unsigned long **bit, int *max) {
     return -1;
 }
 
-static int zbook_probe(struct hid_device *hdev, const struct hid_device_id *id)
-{
+static int zbook_probe(struct hid_device *hdev, const struct hid_device_id *id) {
     int ret;
 
     struct zbook_dev *data = NULL;
@@ -253,6 +246,7 @@ static int zbook_probe(struct hid_device *hdev, const struct hid_device_id *id)
                 hid_err(hdev, "hw start failed\n");
                 return ret;
             }
+            return 0;
         }
 
     hdev->quirks |= HID_QUIRK_INPUT_PER_APP;
@@ -269,18 +263,18 @@ static int zbook_probe(struct hid_device *hdev, const struct hid_device_id *id)
     return 0;
 }
 
-static void zbook_remove(struct hid_device *hdev)
-{
+static void zbook_remove(struct hid_device *hdev) {
     hid_hw_stop(hdev);
 }
 
 static const struct hid_device_id zbook_id[] = {
-        { HID_DEVICE(HID_BUS_ANY, HID_GROUP_ANY, USB_VENDOR_ID_ALPS_HP,
-                     HID_DEVICE_ID_ALPS_U1_HP) },
+        {HID_DEVICE(HID_BUS_ANY, HID_GROUP_ANY, USB_VENDOR_ID_ALPS_HP,
+                    HID_DEVICE_ID_ALPS_U1_HP)},
         {}
 };
 
-MODULE_DEVICE_TABLE(hid, zbook_id);
+MODULE_DEVICE_TABLE(hid, zbook_id
+);
 
 static struct hid_driver zbook_driver = {
         .name = "hid-hp-zbook",
@@ -292,7 +286,7 @@ static struct hid_driver zbook_driver = {
         .input_configured = zbook_input_configured,
 #ifdef CONFIG_PM
         .resume = zbook_post_resume,
-	.reset_resume = zbook_post_reset,
+    .reset_resume = zbook_post_reset,
 #endif
 };
 
