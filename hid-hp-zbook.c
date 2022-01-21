@@ -208,6 +208,10 @@ static int zbook_input_configured(struct hid_device *hdev, struct hid_input *hi)
 static int zbook_input_mapping(struct hid_device *hdev, struct hid_input *hi,
                                struct hid_field *field, struct hid_usage *usage,
                                unsigned long **bit, int *max) {
+    if (hdev->vendor == USB_VENDOR_ID_ALPS_HP &&
+        hdev->product == HID_DEVICE_ID_ALPS_U1_HP) // USB keyboard
+        if (!strstr(hdev->phys, "input3")) // Other interfaces
+            return 0;
     return -1;
 }
 
