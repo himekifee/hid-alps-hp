@@ -128,8 +128,8 @@ static int touchpad_init(struct hid_device *hdev, struct zbook_dev *pri_data) {
     pri_data->x_max = 3328;
     pri_data->y_min = 1;
     pri_data->y_max = 1920;
-    pri_data->x_active_len_mm = 110;
-    pri_data->y_active_len_mm = 65;
+    pri_data->x_active_len_mm = 110 - 1;
+    pri_data->y_active_len_mm = 65 - 1;
     return 0;
 }
 

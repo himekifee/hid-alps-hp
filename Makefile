@@ -4,6 +4,7 @@ obj-m := $(modname).o
 KVERSION := $(shell uname -r)
 KDIR := /lib/modules/$(KVERSION)/build
 PWD := "$$(pwd)"
+MODULE_VERSION := 0.1.1
 
 ifdef DEBUG
 CFLAGS_$(obj-m) := -DDEBUG
