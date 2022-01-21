@@ -214,8 +214,9 @@ static int zbook_input_mapping(struct hid_device *hdev, struct hid_input *hi,
         (hdev->vendor == BLUETOOTH_VENDOR_ID_ZBOOK &&
          hdev->product ==
          BLUETOOTH_PRODUCT_ID_ZBOOK && // Bluetooth keyboard
-         hi->name != NULL &&
-         !strstr(hi->name, "Mouse"))) // Other interfaces
+         hi->name == NULL ||
+         (hi->name != NULL &&
+          !strstr(hi->name, "Mouse")))) // Other interfaces
         return 0;
     return -1;
 }
@@ -303,7 +304,7 @@ static struct hid_driver zbook_driver = {
         .input_configured = zbook_input_configured,
 #ifdef CONFIG_PM
         .resume = zbook_post_resume,
-	.reset_resume = zbook_post_reset,
+    .reset_resume = zbook_post_reset,
 #endif
 };
 
