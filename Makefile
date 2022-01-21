@@ -1,4 +1,4 @@
-modname := hid-alps-hp
+modname := hid-hp-zbook
 obj-m := $(modname).o
 
 KVERSION := $(shell uname -r)
