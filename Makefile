@@ -5,7 +5,7 @@ ccflags-y := -std=gnu99
 KVERSION := $(shell uname -r)
 KDIR := /lib/modules/$(KVERSION)/build
 PWD := "$$(pwd)"
-MODULE_VERSION := 0.1.1
+MODULE_VERSION := 0.1.2
 
 ifdef DEBUG
 CFLAGS_$(obj-m) := -DDEBUG
