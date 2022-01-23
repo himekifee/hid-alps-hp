@@ -9,6 +9,8 @@
 #include <linux/input/mt.h>
 #include <linux/module.h>
 #include <asm/unaligned.h>
+#include <linux/delay.h>
+#include "hid-hp-zbook.h"
 
 /* USB */
 #define USB_VENDOR_ID_ZBOOK 0x1FC9
@@ -18,17 +20,11 @@
 #define BLUETOOTH_VENDOR_ID_ZBOOK 0x04F2
 #define BLUETOOTH_PRODUCT_ID_ZBOOK 0x1573
 
-#define U1_ABSOLUTE_REPORT_ID 0x07 /* Absolute data ReportID */
+#define TOUCH_ABSOLUTE_REPORT_ID 0x07 /* Absolute data ReportID */
+#define TOUCH_FEATURE_REPORT_ID 0x09
 
 #define MAX_TOUCHES 5
 
-enum dev_num {
-    TOUCHPAD,
-    KEYBOARD,
-    FN_KEY,
-    PROG_BTN,
-    UNKNOWN,
-};
 /**
  * struct zbook_dev
  *
@@ -53,7 +49,6 @@ struct zbook_dev {
     struct input_dev *input;
     struct hid_device *hdev;
 
-    enum dev_num dev_type;
     u8 max_fingers;
     u8 has_sp;
     u8 sp_btn_info;
@@ -75,7 +70,7 @@ static int zbook_raw_event(struct hid_device *hdev, struct hid_report *report,
     if (!data)
         return 0;
     switch (data[0]) {
-        case U1_ABSOLUTE_REPORT_ID:
+        case TOUCH_ABSOLUTE_REPORT_ID:
             for (i = 0; i < hdata->max_fingers; i++) {
                 u8 *contact = &data[i * 5];
 
@@ -125,7 +120,11 @@ zbook_post_resume(struct hid_device *hdev) {
     return zbook_post_reset(hdev);
 }
 
-static int touchpad_init(struct hid_device *hdev, struct zbook_dev *pri_data) {
+static int touchpad_init(struct hid_device *hdev, struct hid_input *hi,
+                         struct zbook_dev *pri_data) {
+    int ret;
+    u8 result;
+
     pri_data->max_fingers = 5;
     pri_data->btn_cnt = 1;
     pri_data->has_sp = 0;
@@ -134,6 +133,30 @@ static int touchpad_init(struct hid_device *hdev, struct zbook_dev *pri_data) {
     pri_data->y_max = 1920;
     pri_data->x_active_len_mm = 111;
     pri_data->y_active_len_mm = 66;
+
+//    for (int i = 0; i < (sizeof(touchpad_init_seq) / sizeof(touchpad_init_seq[0])); i++) {
+//        printk("Sending init_seq num %d", i);
+//        if (touchpad_init_seq[i][0] == 0xff)
+//            ret = hid_hw_raw_request(hdev, TOUCH_FEATURE_REPORT_ID, &result,
+//                                     TOUCH_FEATURE_REPORT_LEN,
+//                                     HID_FEATURE_REPORT,
+//                                     HID_REQ_GET_REPORT);
+////            result = 0;
+//        else
+//            ret = hid_hw_raw_request(hdev, TOUCH_FEATURE_REPORT_ID,
+//                                     touchpad_init_seq[i],
+//                                     TOUCH_FEATURE_REPORT_LEN,
+//                                     HID_FEATURE_REPORT,
+//                                     HID_REQ_SET_REPORT);
+//        if (ret < 0) {
+//            dev_err(&hdev->dev,
+//                    "Failed to request feature report (%d) with index %d, %s (App:%d) on %s\n",
+//                    ret, i, hi->name, hi->application, hdev->phys);
+//            return ret;
+//        }
+//        msleep(1000);
+//    }
+
     return 0;
 }
 
@@ -144,58 +167,52 @@ static int zbook_input_configured(struct hid_device *hdev, struct hid_input *hi)
          hdev->product == USB_PRODUCT_ID_ZBOOK && // USB keyboard
          strstr(hdev->phys, "input3")) || // Touchpad interface
         (hdev->vendor == BLUETOOTH_VENDOR_ID_ZBOOK &&
-         hdev->product == BLUETOOTH_PRODUCT_ID_ZBOOK // Bluetooth keyboard
-        )) {
-        if (data->dev_type == TOUCHPAD) {
-            struct input_dev *input = hi->input;
-            int res_x, res_y, i;
+         hdev->product ==
+         BLUETOOTH_PRODUCT_ID_ZBOOK && // Bluetooth keyboard
+         hi->report != NULL &&
+         hi->report->id == 7)) {
+        struct input_dev *input = hi->input;
+        int res_x, res_y, i;
 
-            data->input = input;
+        data->input = input;
 
-            hid_dbg(hdev, "Opening low level driver\n");
-            ret = hid_hw_open(hdev);
-            if (ret)
-                return ret;
+        hid_dbg(hdev, "Opening low level driver\n");
+        ret = hid_hw_open(hdev);
+        if (ret)
+            return ret;
 
-            /* Allow incoming hid reports */
-            hid_device_io_start(hdev);
-            ret = touchpad_init(hdev, data);
+        /* Allow incoming hid reports */
+        hid_device_io_start(hdev);
+        ret = touchpad_init(hdev, hi, data);
 
-            if (ret)
-                goto exit;
+        if (ret)
+            goto exit;
 
-            __set_bit(EV_ABS, input->evbit);
-            input_set_abs_params(input, ABS_MT_POSITION_X,
-                                 data->x_min, data->x_max, 0, 0);
-            input_set_abs_params(input, ABS_MT_POSITION_Y,
-                                 data->y_min, data->y_max, 0, 0);
+        __set_bit(EV_ABS, input->evbit);
+        input_set_abs_params(input, ABS_MT_POSITION_X, data->x_min,
+                             data->x_max, 0, 0);
+        input_set_abs_params(input, ABS_MT_POSITION_Y, data->y_min,
+                             data->y_max, 0, 0);
 
-            if (data->x_active_len_mm && data->y_active_len_mm) {
-                res_x = (data->x_max - 1) /
-                        data->x_active_len_mm;
-                res_y = (data->y_max - 1) /
-                        data->y_active_len_mm;
+        if (data->x_active_len_mm && data->y_active_len_mm) {
+            res_x = (data->x_max - 1) / data->x_active_len_mm;
+            res_y = (data->y_max - 1) / data->y_active_len_mm;
 
-                input_abs_set_res(input, ABS_MT_POSITION_X,
-                                  res_x);
-                input_abs_set_res(input, ABS_MT_POSITION_Y,
-                                  res_y);
-            }
-
-            input_set_abs_params(input, ABS_MT_PRESSURE, 0, 127, 0,
-                                 0);
-
-            input_mt_init_slots(input, data->max_fingers,
-                                INPUT_MT_POINTER);
-
-            __set_bit(EV_KEY, input->evbit);
-
-            if (data->btn_cnt == 1)
-                __set_bit(INPUT_PROP_BUTTONPAD, input->propbit);
-
-            for (i = 0; i < data->btn_cnt; i++)
-                __set_bit(BTN_LEFT + i, input->keybit);
+            input_abs_set_res(input, ABS_MT_POSITION_X, res_x);
+            input_abs_set_res(input, ABS_MT_POSITION_Y, res_y);
         }
+
+        input_set_abs_params(input, ABS_MT_PRESSURE, 0, 127, 0, 0);
+
+        input_mt_init_slots(input, data->max_fingers, INPUT_MT_POINTER);
+
+        __set_bit(EV_KEY, input->evbit);
+
+        if (data->btn_cnt == 1)
+            __set_bit(INPUT_PROP_BUTTONPAD, input->propbit);
+
+        for (i = 0; i < data->btn_cnt; i++)
+            __set_bit(BTN_LEFT + i, input->keybit);
     }
     return 0;
 
@@ -212,17 +229,16 @@ static int zbook_input_mapping(struct hid_device *hdev, struct hid_input *hi,
          hdev->product == USB_PRODUCT_ID_ZBOOK && // USB keyboard
          !strstr(hdev->phys, "input3")) ||
         (hdev->vendor == BLUETOOTH_VENDOR_ID_ZBOOK &&
-         hdev->product ==
-         BLUETOOTH_PRODUCT_ID_ZBOOK && // Bluetooth keyboard
-         (hi->name == NULL ||
-          (hi->name != NULL &&
-           !strstr(hi->name, "Mouse"))))) // Other interfaces
+         hdev->product == BLUETOOTH_PRODUCT_ID_ZBOOK && // Bluetooth keyboard
+         field->report->id != 7))
         return 0;
     return -1;
 }
 
 static int zbook_probe(struct hid_device *hdev, const struct hid_device_id *id) {
     int ret;
+    bool isBT = hdev->vendor == BLUETOOTH_VENDOR_ID_ZBOOK &&
+                hdev->product == BLUETOOTH_PRODUCT_ID_ZBOOK;
 
     struct zbook_dev *data = NULL;
     data = devm_kzalloc(&hdev->dev, sizeof(struct zbook_dev), GFP_KERNEL);
@@ -233,13 +249,9 @@ static int zbook_probe(struct hid_device *hdev, const struct hid_device_id *id) 
     if ((hdev->vendor == USB_VENDOR_ID_ZBOOK &&
          hdev->product == USB_PRODUCT_ID_ZBOOK && // USB keyboard
          strstr(hdev->phys, "input3")) || // Touchpad interface
-        (hdev->vendor == BLUETOOTH_VENDOR_ID_ZBOOK &&
-         hdev->product == BLUETOOTH_PRODUCT_ID_ZBOOK // Bluetooth keyboard
-        )) {
+        isBT) {
         hdev->quirks |= HID_QUIRK_NO_INIT_REPORTS;
-        if (hdev->vendor == BLUETOOTH_VENDOR_ID_ZBOOK &&
-            hdev->product ==
-            BLUETOOTH_PRODUCT_ID_ZBOOK) // Bluetooth keyboard
+        if (isBT) // Bluetooth keyboard
             hdev->quirks |= HID_QUIRK_INPUT_PER_APP;
 
         ret = hid_parse(hdev);
@@ -249,14 +261,6 @@ static int zbook_probe(struct hid_device *hdev, const struct hid_device_id *id) 
         }
 
         hid_set_drvdata(hdev, data);
-        switch (hdev->product) {
-            case USB_PRODUCT_ID_ZBOOK:
-            case BLUETOOTH_PRODUCT_ID_ZBOOK:
-                data->dev_type = TOUCHPAD;
-                break;
-            default:
-                data->dev_type = UNKNOWN;
-        }
         ret = hid_hw_start(hdev, HID_CONNECT_DEFAULT);
         if (ret) {
             hid_err(hdev, "hw start failed\n");

@@ -1,5 +1,6 @@
 modname := hid-hp-zbook
 obj-m := $(modname).o
+ccflags-y := -std=gnu99
 
 KVERSION := $(shell uname -r)
 KDIR := /lib/modules/$(KVERSION)/build
