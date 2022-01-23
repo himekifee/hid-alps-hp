@@ -123,7 +123,7 @@ zbook_post_resume(struct hid_device *hdev) {
 static int touchpad_init(struct hid_device *hdev, struct hid_input *hi,
                          struct zbook_dev *pri_data) {
     int ret;
-    u8 result[48];
+    u8 *result = kzalloc(TOUCH_FEATURE_REPORT_LEN, GFP_KERNEL);
 
     pri_data->max_fingers = 5;
     pri_data->btn_cnt = 1;
@@ -151,10 +151,12 @@ static int touchpad_init(struct hid_device *hdev, struct hid_input *hi,
             dev_err(&hdev->dev,
                     "Failed to request feature report (%d) with index %d, %s (App:%d) on %s\n",
                     ret, i, hi->name, hi->application, hdev->phys);
+            kfree(result);
             return ret;
         }
     }
 
+    kfree(result);
     return 0;
 }
 
