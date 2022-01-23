@@ -51,7 +51,6 @@ struct zbook_dev {
 
     u8 max_fingers;
     u8 has_sp;
-    u8 sp_btn_info;
     u32 x_active_len_mm;
     u32 y_active_len_mm;
     u32 x_max;
@@ -64,45 +63,51 @@ struct zbook_dev {
 static int zbook_raw_event(struct hid_device *hdev, struct hid_report *report,
                            u8 *data, int size) {
     struct zbook_dev *hdata = hid_get_drvdata(hdev);
-    unsigned int x, y, z;
+    int x, y, z;
     int i;
 
     if (!data)
         return 0;
     switch (data[0]) {
         case TOUCH_ABSOLUTE_REPORT_ID:
-            for (i = 0; i < hdata->max_fingers; i++) {
-                u8 *contact = &data[i * 5];
+            if (data[1] != 127) {        // Touchpad pressed, only 0 or 1 so can use 127 to prevent mouse input
+                for (i = 0; i < hdata->max_fingers; i++) {
+                    u8 *contact = &data[i * 5];
 
-                x = get_unaligned_le16(contact + 3);
-                y = get_unaligned_le16(contact + 5);
-                z = contact[7] & 0x7F;
+                    x = get_unaligned_le16(contact + 3);
+                    y = get_unaligned_le16(contact + 5);
+                    z = contact[7] & 0x7F;
 
-                input_mt_slot(hdata->input, i);
+                    input_mt_slot(hdata->input, i);
 
-                if (z != 0) {
-                    input_mt_report_slot_state(hdata->input,
-                                               MT_TOOL_FINGER, 1);
-                    input_report_abs(hdata->input,
-                                     ABS_MT_POSITION_X, x);
-                    input_report_abs(hdata->input,
-                                     ABS_MT_POSITION_Y, y);
-                    input_report_abs(hdata->input, ABS_MT_PRESSURE,
-                                     z);
-                } else {
-                    input_mt_report_slot_inactive(hdata->input);
+                    if (z != 0) {
+                        input_mt_report_slot_state(
+                                hdata->input, MT_TOOL_FINGER,
+                                1);
+                        input_report_abs(hdata->input,
+                                         ABS_MT_POSITION_X, x);
+                        input_report_abs(hdata->input,
+                                         ABS_MT_POSITION_Y, y);
+                        input_report_abs(hdata->input,
+                                         ABS_MT_PRESSURE, z);
+                    } else {
+                        input_mt_report_slot_inactive(
+                                hdata->input);
+                    }
                 }
+
+                input_mt_sync_frame(hdata->input);
+
+                input_report_key(hdata->input, BTN_LEFT, data[1] & 0x1);
+                input_report_key(hdata->input, BTN_RIGHT,
+                                 (data[1] & 0x2));
+                input_report_key(hdata->input, BTN_MIDDLE,
+                                 (data[1] & 0x4));
+
+                input_sync(hdata->input);
+
+                return 1;
             }
-
-            input_mt_sync_frame(hdata->input);
-
-            input_report_key(hdata->input, BTN_LEFT, data[1] & 0x1);
-            input_report_key(hdata->input, BTN_RIGHT, (data[1] & 0x2));
-            input_report_key(hdata->input, BTN_MIDDLE, (data[1] & 0x4));
-
-            input_sync(hdata->input);
-
-            return 1;
     }
 
     return 0;
@@ -168,8 +173,7 @@ static int zbook_input_configured(struct hid_device *hdev, struct hid_input *hi)
         (hdev->vendor == BLUETOOTH_VENDOR_ID_ZBOOK &&
          hdev->product ==
          BLUETOOTH_PRODUCT_ID_ZBOOK && // Bluetooth keyboard
-         hi->report != NULL &&
-         hi->report->id == 7)) {
+         hi->input == data->input)) {
         struct input_dev *input = hi->input;
         int res_x, res_y, i;
 
@@ -226,12 +230,15 @@ static int zbook_input_mapping(struct hid_device *hdev, struct hid_input *hi,
                                unsigned long **bit, int *max) {
     if ((hdev->vendor == USB_VENDOR_ID_ZBOOK &&
          hdev->product == USB_PRODUCT_ID_ZBOOK && // USB keyboard
-         !strstr(hdev->phys, "input3")) ||
+         strstr(hdev->phys, "input3")) ||
         (hdev->vendor == BLUETOOTH_VENDOR_ID_ZBOOK &&
          hdev->product == BLUETOOTH_PRODUCT_ID_ZBOOK && // Bluetooth keyboard
-         field->report->id != 7))
-        return 0;
-    return -1;
+         field->report->id == 7)) {
+        struct zbook_dev *data = hid_get_drvdata(hdev);
+        data->input = hi->input;
+        return -1;
+    }
+    return 0;
 }
 
 static int zbook_probe(struct hid_device *hdev, const struct hid_device_id *id) {
@@ -294,8 +301,7 @@ static const struct hid_device_id zbook_id[] = {
         {}
 };
 
-MODULE_DEVICE_TABLE(hid, zbook_id
-);
+MODULE_DEVICE_TABLE(hid, zbook_id);
 
 static struct hid_driver zbook_driver = {
         .name = "hid-hp-zbook",
@@ -307,7 +313,7 @@ static struct hid_driver zbook_driver = {
         .input_configured = zbook_input_configured,
 #ifdef CONFIG_PM
         .resume = zbook_post_resume,
-    .reset_resume = zbook_post_reset,
+        .reset_resume = zbook_post_reset,
 #endif
 };
 
