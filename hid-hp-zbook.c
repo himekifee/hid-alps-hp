@@ -123,7 +123,7 @@ zbook_post_resume(struct hid_device *hdev) {
 static int touchpad_init(struct hid_device *hdev, struct hid_input *hi,
                          struct zbook_dev *pri_data) {
     int ret;
-    u8 result;
+    u8 result[48];
 
     pri_data->max_fingers = 5;
     pri_data->btn_cnt = 1;
@@ -134,28 +134,26 @@ static int touchpad_init(struct hid_device *hdev, struct hid_input *hi,
     pri_data->x_active_len_mm = 111;
     pri_data->y_active_len_mm = 66;
 
-//    for (int i = 0; i < (sizeof(touchpad_init_seq) / sizeof(touchpad_init_seq[0])); i++) {
-//        printk("Sending init_seq num %d", i);
-//        if (touchpad_init_seq[i][0] == 0xff)
-//            ret = hid_hw_raw_request(hdev, TOUCH_FEATURE_REPORT_ID, &result,
-//                                     TOUCH_FEATURE_REPORT_LEN,
-//                                     HID_FEATURE_REPORT,
-//                                     HID_REQ_GET_REPORT);
-////            result = 0;
-//        else
-//            ret = hid_hw_raw_request(hdev, TOUCH_FEATURE_REPORT_ID,
-//                                     touchpad_init_seq[i],
-//                                     TOUCH_FEATURE_REPORT_LEN,
-//                                     HID_FEATURE_REPORT,
-//                                     HID_REQ_SET_REPORT);
-//        if (ret < 0) {
-//            dev_err(&hdev->dev,
-//                    "Failed to request feature report (%d) with index %d, %s (App:%d) on %s\n",
-//                    ret, i, hi->name, hi->application, hdev->phys);
-//            return ret;
-//        }
-//        msleep(1000);
-//    }
+    for (int i = 0; i < (sizeof(touchpad_init_seq) / sizeof(touchpad_init_seq[0])); i++) {
+        printk("Sending init_seq num %d", i);
+        if (touchpad_init_seq[i][0] == 0xff)
+            ret = hid_hw_raw_request(hdev, TOUCH_FEATURE_REPORT_ID, result,
+                                     TOUCH_FEATURE_REPORT_LEN,
+                                     HID_FEATURE_REPORT,
+                                     HID_REQ_GET_REPORT);
+        else
+            ret = hid_hw_raw_request(hdev, TOUCH_FEATURE_REPORT_ID,
+                                     touchpad_init_seq[i],
+                                     TOUCH_FEATURE_REPORT_LEN,
+                                     HID_FEATURE_REPORT,
+                                     HID_REQ_SET_REPORT);
+        if (ret < 0) {
+            dev_err(&hdev->dev,
+                    "Failed to request feature report (%d) with index %d, %s (App:%d) on %s\n",
+                    ret, i, hi->name, hi->application, hdev->phys);
+            return ret;
+        }
+    }
 
     return 0;
 }
