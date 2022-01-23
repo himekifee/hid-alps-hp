@@ -136,22 +136,24 @@ static int touchpad_init(struct hid_device *hdev, struct hid_input *hi,
     pri_data->y_active_len_mm = 66;
 
 
-    for (int i = 0; i < (sizeof(touchpad_init_seq) / sizeof(touchpad_init_seq[0])); i++) {
-        memcpy(input, touchpad_init_seq[i], TOUCH_FEATURE_REPORT_LEN);
-        ret = hid_hw_raw_request(hdev, TOUCH_FEATURE_REPORT_ID,
-                                 input,
-                                 TOUCH_FEATURE_REPORT_LEN,
-                                 HID_FEATURE_REPORT,
-                                 HID_REQ_SET_REPORT);
-        if (ret < 0) {
-            dev_err(&hdev->dev,
-                    "Failed to request feature report (%d) with index %d\n",
-                    ret, i);
-            kfree(input);
-            kfree(result);
-            return ret;
+    if (hdev->vendor == USB_VENDOR_ID_ZBOOK && hdev->product == USB_PRODUCT_ID_ZBOOK)
+        for (int i = 0; i < (sizeof(touchpad_init_seq) / sizeof(touchpad_init_seq[0])); i++) {
+            memcpy(input, touchpad_init_seq[i], TOUCH_FEATURE_REPORT_LEN);
+            ret = hid_hw_raw_request(hdev, TOUCH_FEATURE_REPORT_ID,
+                                     input,
+                                     TOUCH_FEATURE_REPORT_LEN,
+                                     HID_FEATURE_REPORT,
+                                     HID_REQ_SET_REPORT);
+            if (ret < 0) {
+                dev_err(&hdev->dev,
+                        "Failed to request feature report (%d) with index %d\n",
+                        ret, i);
+                kfree(input);
+                kfree(result);
+                return ret;
+            }
         }
-    }
+
     kfree(input);
     kfree(result);
     return 0;
