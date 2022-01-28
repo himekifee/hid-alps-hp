@@ -113,33 +113,10 @@ static int zbook_raw_event(struct hid_device *hdev, struct hid_report *report,
     return 0;
 }
 
-static int __maybe_unused
-
-zbook_post_reset(struct hid_device *hdev) {
-    return -1;
-}
-
-static int __maybe_unused
-
-zbook_post_resume(struct hid_device *hdev) {
-    return zbook_post_reset(hdev);
-}
-
-static int touchpad_init(struct hid_device *hdev, struct hid_input *hi,
-                         struct zbook_dev *pri_data) {
+static int touchpad_init_raw(struct hid_device *hdev) {
     int ret;
     u8 *input = kzalloc(TOUCH_FEATURE_REPORT_LEN, GFP_KERNEL);
     u8 *result = kzalloc(TOUCH_FEATURE_REPORT_LEN, GFP_KERNEL);
-
-    pri_data->max_fingers = 5;
-    pri_data->btn_cnt = 1;
-    pri_data->has_sp = 0;
-    pri_data->x_max = 3328;
-    pri_data->y_min = 1;
-    pri_data->y_max = 1920;
-    pri_data->x_active_len_mm = 111;
-    pri_data->y_active_len_mm = 66;
-
 
     if (hdev->vendor == USB_VENDOR_ID_ZBOOK && hdev->product == USB_PRODUCT_ID_ZBOOK)
         for (int i = 0; i < (sizeof(touchpad_init_seq) / sizeof(touchpad_init_seq[0])); i++) {
@@ -158,10 +135,34 @@ static int touchpad_init(struct hid_device *hdev, struct hid_input *hi,
                 return ret;
             }
         }
-
     kfree(input);
     kfree(result);
     return 0;
+}
+
+static int __maybe_unused
+
+zbook_post_reset(struct hid_device *hdev) {
+    return touchpad_init_raw(hdev);
+}
+
+static int __maybe_unused
+
+zbook_post_resume(struct hid_device *hdev) {
+    return 0;
+}
+
+static int touchpad_init(struct hid_device *hdev, struct hid_input *hi,
+                         struct zbook_dev *pri_data) {
+    pri_data->max_fingers = 5;
+    pri_data->btn_cnt = 1;
+    pri_data->has_sp = 0;
+    pri_data->x_max = 3328;
+    pri_data->y_min = 1;
+    pri_data->y_max = 1920;
+    pri_data->x_active_len_mm = 111;
+    pri_data->y_active_len_mm = 66;
+    return touchpad_init_raw(hdev);
 }
 
 static int zbook_input_configured(struct hid_device *hdev, struct hid_input *hi) {
